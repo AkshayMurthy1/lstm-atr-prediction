@@ -1,0 +1,4 @@
+pandas_datareader
+os
+pandas
+yfinance
