@@ -22,7 +22,6 @@ import pandas as pd
 import yfinance as yf
 
 def get_stock(ticker, start_date, end_date, s_window, l_window):
-    print("sakdshfkhasfha")
     try:
         yf.pdr_override()
         df = yf.download(ticker, start=start_date, end=end_date,auto_adjust=False)
