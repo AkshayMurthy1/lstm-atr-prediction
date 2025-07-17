@@ -1,0 +1,6 @@
+#bollinger bands
+#try moving median instead of moving average
+#try moving quartiles instead of std; q3-q2  *1/2
+#take longer time period - five years
+
+#lstm,cnn,and rnn cant either predict directional volatiliy for xl stocks
