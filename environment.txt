@@ -1,4 +1,4 @@
 pandas_datareader
-os
+numpy
 pandas
 yfinance
