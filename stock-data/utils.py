@@ -205,8 +205,8 @@ def backtest_strategy(data: pd.DataFrame,
                           vol_metric:str,
                           ini_cash=10000,
                           R: float = 1000.0,
-                          upper_scale = 1.5,
-                          lower_scale = 1.5,lr=.1):
+                          buy_scale = 1.5,
+                          sell_scale = 1.5,lr=.1):
     """
     Backtest a simple ATR‑based mean‑reversion strategy:
       - Predict next ATR with an LSTM
@@ -231,6 +231,8 @@ def backtest_strategy(data: pd.DataFrame,
     optim = torch.optim.Adam(lstm_model.parameters(),lr=lr) # have higher learning rate
     t_money = []
     p_money=[]
+    atr_past_a = 0
+    bias=0
     for i in range(T, len(data)-1):
         # if i>T:
         #     true_atr_norm = scaler.transform(np.reshape(data[vol_metric].iloc[i],(-1,1)))
@@ -238,13 +240,29 @@ def backtest_strategy(data: pd.DataFrame,
         #     loss = crit(torch.tensor(torch.tensor([true_atr_norm],dtype=torch.float32)),preds_norm[-1])
         #     loss.backward()
         #     optim.step()
+
+        # if (i-T)%(10) == 0:
+        #     if i!=T:
+        #         past_ten_preds = preds[i-10-T:i-T]
+        #         #print("SAHEP: ",past_ten_preds,i)
+        #         bias = np.mean(data['ATR'].iloc[i-10:i]-past_ten_preds)
+
         window_atr = data[vol_metric].iloc[i-T:i]
-        q1 = window_atr.quantile(0.25)
-        q3 = window_atr.quantile(0.75)
-        med = window_atr.quantile(0.50)
-        iqr = q3 - q1
-        lower = med - upper_scale * iqr
-        upper = med + lower_scale * iqr
+        if i>=T+30:
+            q1 = np.quantile(preds,0.25) #take avg of preds and true values?
+            q3 = np.quantile(preds,0.75)
+            med = np.quantile(preds,0.50)
+
+            iqr = q3 - q1
+            lower = med - buy_scale * iqr
+            upper = med + sell_scale * iqr
+        else:
+            q1 = window_atr.quantile(.25)
+            q3 = window_atr.quantile(.75) 
+            med = window_atr.quantile(.5) 
+            iqr = q3-q1
+            lower = med-buy_scale*iqr
+            upper = med+sell_scale*iqr
 
         # Prepare model input: last T bars of OHLC + normalized ATR
         X = data[['index','Open','Close','High','Low']].iloc[i-T:i].copy()
@@ -258,7 +276,7 @@ def backtest_strategy(data: pd.DataFrame,
         preds_norm.append(atr_next_norm)
         atr_next_norm=atr_next_norm.item()
         
-        atr_next = scaler.inverse_transform([[atr_next_norm]])[0,0]
+        atr_next = scaler.inverse_transform([[atr_next_norm]])[0,0] + bias
         #if atr_next<0:
         #    print(atr_next)
         preds.append(atr_next)
@@ -266,6 +284,9 @@ def backtest_strategy(data: pd.DataFrame,
         # next bar’s prices
         open_next  = data['Open'].iloc[i+1]
         close_next = data['Close'].iloc[i+1]
+
+        atr_past_a += (data['ATR'] - atr_next)
+
 
         # entry/exit signals
         if atr_next > upper and shares > 0:
