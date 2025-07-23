@@ -209,6 +209,7 @@ def backtest_strategy(data: pd.DataFrame,
     passive_shares = ini_cash/data.loc[T,"Open"]
     # Precompute rolling IQR thresholds on ATR over T bars
     # (we’ll compute quantiles on‑the‑fly inside the loop)
+    t_money = []
     for i in range(T, len(data)-1):
         window_atr = data[vol_metric].iloc[i-T:i]
         q1 = window_atr.quantile(0.25)
@@ -263,8 +264,10 @@ def backtest_strategy(data: pd.DataFrame,
             shares+=delta
             print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
             buys.append(i)
+        t_money.append(cash+shares*data['Close'].iloc[i])
 
     # At end, mark-to-market at last close
     final_value = cash + shares * data['Close'].iloc[-1]
     passive_value = passive_shares*data['Close'].iloc[-1]
-    return final_value, cash, shares,passive_value,buys,sells,preds
+
+    return final_value, cash, shares,passive_value,buys,sells,preds, t_money
