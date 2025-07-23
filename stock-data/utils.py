@@ -185,13 +185,13 @@ def get_trained_model(df,scaler,metric="ATR"):
     
 
 def backtest_strategy(data: pd.DataFrame,
-                          lstm_model,
+                          lstm_model:NN_LSTM,
                           scaler:StandardScaler,
                           vol_metric:str,
                           ini_cash=10000,
                           R: float = 1000.0,
                           upper_scale = 1.5,
-                          lower_scale = 1.5):
+                          lower_scale = 1.5,lr=.1):
     """
     Backtest a simple ATR‑based mean‑reversion strategy:
       - Predict next ATR with an LSTM
@@ -206,11 +206,23 @@ def backtest_strategy(data: pd.DataFrame,
     buys = []
     sells = []
     preds = []
+    preds_norm = []
+    
     passive_shares = ini_cash/data.loc[T,"Open"]
     # Precompute rolling IQR thresholds on ATR over T bars
     # (we’ll compute quantiles on‑the‑fly inside the loop)
+
+    crit = MSELoss()
+    optim = torch.optim.Adam(lstm_model.parameters(),lr=lr) # have higher learning rate
     t_money = []
+    p_money=[]
     for i in range(T, len(data)-1):
+        # if i>T:
+        #     true_atr_norm = scaler.transform(np.reshape(data[vol_metric].iloc[i],(-1,1)))
+        #     #print("P size: ",len(preds_norm))
+        #     loss = crit(torch.tensor(torch.tensor([true_atr_norm],dtype=torch.float32)),preds_norm[-1])
+        #     loss.backward()
+        #     optim.step()
         window_atr = data[vol_metric].iloc[i-T:i]
         q1 = window_atr.quantile(0.25)
         q3 = window_atr.quantile(0.75)
@@ -228,7 +240,9 @@ def backtest_strategy(data: pd.DataFrame,
         # Predict next normalized ATR, then denormalize
         atr_next_norm = lstm_model(model_in)
         #print(atr_next_norm.shape)
+        preds_norm.append(atr_next_norm)
         atr_next_norm=atr_next_norm.item()
+        
         atr_next = scaler.inverse_transform([[atr_next_norm]])[0,0]
         #if atr_next<0:
         #    print(atr_next)
@@ -265,9 +279,9 @@ def backtest_strategy(data: pd.DataFrame,
             print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
             buys.append(i)
         t_money.append(cash+shares*data['Close'].iloc[i])
-
+        p_money.append(passive_shares*data['Close'].iloc[i])
     # At end, mark-to-market at last close
     final_value = cash + shares * data['Close'].iloc[-1]
     passive_value = passive_shares*data['Close'].iloc[-1]
 
-    return final_value, cash, shares,passive_value,buys,sells,preds, t_money
+    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money
