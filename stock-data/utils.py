@@ -56,7 +56,7 @@ def tt_split(df_n,vol_metric,scaler:StandardScaler):
     X_train = np.concatenate((X_train,y_train),axis=1)
 
     test = df_n.loc[[i>len(df_n)*4/5 for i in range(len(df_n))]]
-    X_test = test[["index","Open","Close","High","Low", vol_metric]].to_numpy()
+    X_test = test[["index","Open","Close","High","Low"]].to_numpy()
     y_test = test[vol_metric].to_numpy()
     
     y_test = scaler.transform(y_test.reshape(-1,1))
@@ -154,6 +154,7 @@ def get_trained_model(df,scaler,metric="ATR"):
     crit = MSELoss()
     pde_crit = MSELoss()
     losses = []
+    losses_test = []
 
     for i in range(epochs):
         running_loss = 0
@@ -178,10 +179,24 @@ def get_trained_model(df,scaler,metric="ATR"):
         #print(f"Epoch {i+1} | Training Loss: {running_loss}")
         losses.append(running_loss)
 
-    # sns.lineplot(x=[i for i in range(len(losses))],y=losses)
-    # plt.title(f"Training Loss of LSTM ({metric}) across {epochs} epochs")
-    # plt.show()
-    return model
+        with torch.no_grad():
+            testing_loss = 0
+            for x_window_test,y_atr_test in loader_test:
+                out_test = model(x_window_test.permute(1,0,2))
+                #print(y_atr_test.shape)
+                loss = crit(out_test,y_atr_test)
+                testing_loss+=loss.item()
+            losses_test.append(testing_loss/(len(loader_test)))
+
+            
+    fig_tr,ax_tr = plt.subplots()
+    sns.lineplot(x=[i for i in range(len(losses))],y=losses,ax=ax_tr)
+    ax_tr.set_title(f"Training Loss of LSTM ({metric}) across {epochs} epochs")
+
+    fig_te,ax_te = plt.subplots()
+    sns.lineplot(x=[i for i in range(len(losses_test))],y=losses_test,ax=ax_te)
+    ax_te.set_title(f"Testing Loss of LSTM ({metric}) across {epochs} epochs")
+    return model,fig_tr,fig_te
     
 
 def backtest_strategy(data: pd.DataFrame,
