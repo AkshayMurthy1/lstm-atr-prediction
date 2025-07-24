@@ -14,6 +14,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 T=30 #period of 30 days
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print("DEVICE: ",device)
 
 def get_stock(ticker, start_date, end_date, s_window, l_window):
     try:
@@ -149,6 +151,7 @@ def get_trained_model(df,scaler,metric="ATR"):
     #training loop
     
     model = NN_LSTM(input_size=6,output_size=1)
+    model = model.to(device)
     epochs = 20
     optim = torch.optim.Adam(params = model.parameters())
     crit = MSELoss()
@@ -162,7 +165,8 @@ def get_trained_model(df,scaler,metric="ATR"):
             #print("Running")
             input = x_window.permute(1,0,2) #shape = [seq_length,batch_length,4]
             #t = input[-1][:,0]
-            
+            input = input.to(device)
+            y_atr = y_atr.to(device)
             out = model(input)
             #print(y_atr.shape)
             #print(out,y_atr)
@@ -182,8 +186,10 @@ def get_trained_model(df,scaler,metric="ATR"):
         with torch.no_grad():
             testing_loss = 0
             for x_window_test,y_atr_test in loader_test:
+                x_window_test = x_window_test.to(device)
                 out_test = model(x_window_test.permute(1,0,2))
                 #print(y_atr_test.shape)
+                y_atr_test = y_atr_test.to(device)
                 loss = crit(out_test,y_atr_test)
                 testing_loss+=loss.item()
             losses_test.append(testing_loss/(len(loader_test)))
@@ -269,7 +275,7 @@ def backtest_strategy(data: pd.DataFrame,
         X['ATR_norm'] = scaler.transform(data[[vol_metric]].iloc[i-T:i])  # shape (T,1)
         # reshape to (1, T, features)
         #print(X)
-        model_in = torch.tensor(X.values.reshape(T,1, X.shape[1])).to(torch.float32)
+        model_in = torch.tensor(X.values.reshape(T,1, X.shape[1])).to(torch.float32).to(device)
         # Predict next normalized ATR, then denormalize
         atr_next_norm = lstm_model(model_in)
         #print(atr_next_norm.shape)
