@@ -99,13 +99,14 @@ def create_loaders(X_seq,y_seq,X_seq_test,y_seq_test,batch_size=64):
 class NN_LSTM(Module):
     def __init__(self, input_size, output_size):
         super().__init__()
-        self.lstm = LSTM(input_size=input_size,hidden_size=50)
+        #self.first = LSTM(input_size=input_size,hidden_size=50)
+        self.first = RNN(input_size=input_size,hidden_size=50)
         self.fc = Linear(50,1)
         
     def activation(self,X):
         return F.relu(X)
     def forward(self,input):
-        input,_ = self.lstm(input)
+        input,_ = self.first(input)
         input = self.fc(input[-1,:,:])
         #print(input.shape)
         return input #return the last prediction
@@ -128,7 +129,7 @@ def get_cleaned_df(ticker,start,end):
         (high - prev_close).abs(),
         (low - prev_close).abs()
     ], axis=1).max(axis=1)
-
+    df_n["TR"] = tr
     df_n["ATR"] = tr.rolling(7).mean()
     
     log_diff = np.log(df_n["Close"]/df_n["Close"].shift(1))
@@ -136,7 +137,9 @@ def get_cleaned_df(ticker,start,end):
     #df_n["ATR_normalized"] = (df_n["ATR"] - df_n["ATR"].mean())/df_n["ATR"].std()
     #df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
 
-    df_n["Squared_Returns"] = (close/prev_close-1)**2
+    sq_r = (close/prev_close-1)**2
+    df_n["Squared_Returns"] = sq_r.rolling(7).std()
+    df_n["SD_Prices"] = close.rolling(7).std()
     df_n = df_n.dropna()
     df_n = df_n.reset_index().reset_index()
     df_n["index"] = df_n.index%7
