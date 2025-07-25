@@ -49,18 +49,19 @@ def get_stock(ticker, start_date, end_date, s_window, l_window):
         print(error)
         return None
     
-def tt_split(df_n,vol_metric,scaler:StandardScaler):
+def tt_split(df_n,vol_metric,scaler:StandardScaler,scaler_x:StandardScaler,feats = ['Open','Close','High','Low','Volume']):
     train = df_n.loc[[i<=len(df_n)*4/5 for i in range(len(df_n))]]
-    X_train = train[["index","Open","Close","High","Low"]].to_numpy()
+    X_train = train[feats].to_numpy()
+    X_train = scaler_x.fit_transform(X_train)
     y_train = train[vol_metric].to_numpy()
     y_train = scaler.fit_transform(y_train.reshape(-1,1))
     #long_atr = y_train.mean()
     X_train = np.concatenate((X_train,y_train),axis=1)
 
     test = df_n.loc[[i>len(df_n)*4/5 for i in range(len(df_n))]]
-    X_test = test[["index","Open","Close","High","Low"]].to_numpy()
+    X_test = test[feats].to_numpy()
     y_test = test[vol_metric].to_numpy()
-    
+    X_test =scaler_x.transform(X_test)
     y_test = scaler.transform(y_test.reshape(-1,1))
     X_test = np.concatenate((X_test,y_test),axis=1)
     return X_train,y_train,X_test,y_test
@@ -137,17 +138,17 @@ def get_cleaned_df(ticker,start,end):
     #df_n["ATR_normalized"] = (df_n["ATR"] - df_n["ATR"].mean())/df_n["ATR"].std()
     #df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
 
-    sq_r = (close/prev_close-1)**2
-    df_n["Squared_Returns"] = sq_r.rolling(7).std()
+    df_n["SR"] = (close/prev_close-1)**2
+    df_n["Squared_Returns"] = df_n["SR"].rolling(7).std()
     df_n["SD_Prices"] = close.rolling(7).std()
     df_n = df_n.dropna()
     df_n = df_n.reset_index().reset_index()
     df_n["index"] = df_n.index%7
     return df_n
 
-def get_trained_model(df,scaler,metric="ATR"):
-    X_train,y_train,X_test,y_test = tt_split(df, metric,scaler)
-
+def get_trained_model(df,scaler,scaler_x,metric="ATR"):
+    X_train,y_train,X_test,y_test = tt_split(df, metric,scaler,scaler_x)
+    in_size = X_train.shape[1]
 
     X_seq,y_seq,X_seq_test,y_seq_test = make_seq(X_train,y_train,X_test,y_test)
 
@@ -155,7 +156,7 @@ def get_trained_model(df,scaler,metric="ATR"):
 
     #training loop
     
-    model = NN_LSTM(input_size=6,output_size=1)
+    model = NN_LSTM(input_size=in_size,output_size=1)
     model = model.to(device)
     epochs = 20
     optim = torch.optim.Adam(params = model.parameters())
@@ -213,11 +214,13 @@ def get_trained_model(df,scaler,metric="ATR"):
 def backtest_strategy(data: pd.DataFrame,
                           lstm_model:NN_LSTM,
                           scaler:StandardScaler,
+                          scaler_x:StandardScaler,
                           vol_metric:str,
                           ini_cash=1000,
                           R: float = 1000.0,
                           buy_scale = 1.5,
-                          sell_scale = 1.5,lr=.1):
+                          sell_scale = 1.5,lr=.1,
+                          feats = ['Open','Close','High','Low','Volume']):
     """
     Backtest a simple ATR‑based mean‑reversion strategy:
       - Predict next ATR with an LSTM
@@ -277,7 +280,8 @@ def backtest_strategy(data: pd.DataFrame,
             upper = med+sell_scale*iqr
 
         # Prepare model input: last T bars of OHLC + normalized ATR
-        X = data[['index','Open','Close','High','Low']].iloc[i-T:i].copy()
+        X = data[feats].iloc[i-T:i].copy()
+        X[feats] = scaler_x.transform(X[feats])    
         X['ATR_norm'] = scaler.transform(data[[vol_metric]].iloc[i-T:i])  # shape (T,1)
         # reshape to (1, T, features)
         #print(X)
@@ -305,7 +309,7 @@ def backtest_strategy(data: pd.DataFrame,
             sells.append(i)
             # sell all
             cash += shares * close_next
-            print(f"On the {i}th day, sold {shares} shares for ${shares*close_next}")
+            #print(f"On the {i}th day, sold {shares} shares for ${shares*close_next}")
             shares = 0.0
             
         elif atr_next < lower:
@@ -326,7 +330,7 @@ def backtest_strategy(data: pd.DataFrame,
             
             cash -= delta * open_next
             shares+=delta
-            print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
+            #print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
             buys.append(i)
         t_money.append(cash+shares*data['Close'].iloc[i])
         p_money.append(passive_shares*data['Close'].iloc[i])
