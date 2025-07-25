@@ -99,13 +99,16 @@ def create_loaders(X_seq,y_seq,X_seq_test,y_seq_test,batch_size=64):
 class NN_LSTM(Module):
     def __init__(self, input_size, output_size):
         super().__init__()
-        self.lstm = LSTM(input_size=input_size,hidden_size=30)
-        self.fc = Linear(30,output_size)
+        self.lstm = LSTM(input_size=input_size,hidden_size=240)
+        self.fc = Linear(240,30)
+        self.fc2 = Linear(30,1)
+        
     def activation(self,X):
         return F.relu(X)
     def forward(self,input):
         input,_ = self.lstm(input)
         input = self.fc(input[-1,:,:])
+        input  = self.fc2(input)
         #print(input.shape)
         return input #return the last prediction
 #lstm_layer = LSTM(input_size=4,hidden_size=30)
@@ -209,7 +212,7 @@ def backtest_strategy(data: pd.DataFrame,
                           lstm_model:NN_LSTM,
                           scaler:StandardScaler,
                           vol_metric:str,
-                          ini_cash=10000,
+                          ini_cash=1000,
                           R: float = 1000.0,
                           buy_scale = 1.5,
                           sell_scale = 1.5,lr=.1):
@@ -247,11 +250,12 @@ def backtest_strategy(data: pd.DataFrame,
         #     loss.backward()
         #     optim.step()
 
+        ## Bias
         # if (i-T)%(10) == 0:
         #     if i!=T:
         #         past_ten_preds = preds[i-10-T:i-T]
         #         #print("SAHEP: ",past_ten_preds,i)
-        #         bias = np.mean(data['ATR'].iloc[i-10:i]-past_ten_preds)
+        #         bias = np.mean(data[vol_metric].iloc[i-10:i]-past_ten_preds)
 
         window_atr = data[vol_metric].iloc[i-T:i]
         if i>=T+30:
@@ -304,7 +308,7 @@ def backtest_strategy(data: pd.DataFrame,
             
         elif atr_next < lower:
             # buy: risk R = shares * ATR_next -> shares = R / ATR_next
-            target_shares = R / atr_next
+            target_shares = (R / atr_next)
             # print("Lower: ",lower)
             # print("ATR Next: ",atr_next)
             # print("Target shares: ", target_shares)
@@ -313,9 +317,11 @@ def backtest_strategy(data: pd.DataFrame,
             # print("Delta: ",delta)
             # print("Total for Delta: $", delta*open_next)
             if cash<delta*open_next:
-                for j in range(int(delta)):
+                for j in np.linspace(0,delta,int(delta)):
                     if cash>j*open_next:
                         delta = j
+            delta /= 2
+            
             cash -= delta * open_next
             shares+=delta
             print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
