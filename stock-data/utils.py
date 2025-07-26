@@ -97,22 +97,19 @@ def create_loaders(X_seq,y_seq,X_seq_test,y_seq_test,batch_size=64):
     return loader,loader_test
 
 class NN_LSTM(Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, h1, h2):
         super().__init__()
-        self.lstm = LSTM(input_size=input_size,hidden_size=30)
-        self.fc = Linear(31,output_size)
+        self.first = LSTM(input_size=input_size,hidden_size=h1)
+        self.second = LSTM(input_size = h1, hidden_size = h2)
+        # self.first = RNN(input_size=input_size,hidden_size=50)
+        self.fc = Linear(h2,1)
+        
     def activation(self,X):
         return F.relu(X)
-    def forward(self,input,past_error):
-        #past_error is (64,1)
-        input,_ = self.lstm(input) # (64,30)
-        input = input[-1,:,:]
-        print(input.shape,past_error.shape)
-        past_error = past_error[:input.shape[0],:] # make sure it is matching batch size
-        input = torch.concatenate((input,past_error),axis=1)
-        print(input.shape)#64,31
-        input = self.fc(input)
-        
+    def forward(self,input):
+        input,_ = self.first(input)
+        input,_ = self.second(input)
+        input = self.fc(input[-1,:,:])
         #print(input.shape)
         return input #return the last prediction
 #lstm_layer = LSTM(input_size=4,hidden_size=30)
@@ -134,20 +131,23 @@ def get_cleaned_df(ticker,start,end):
         (high - prev_close).abs(),
         (low - prev_close).abs()
     ], axis=1).max(axis=1)
-
+    df_n["TR"] = tr
     df_n["ATR"] = tr.rolling(7).mean()
     
     log_diff = np.log(df_n["Close"]/df_n["Close"].shift(1))
     df_n["SD_Log_Close"] = log_diff.rolling(7).std()
-    df_n["ATR_normalized"] = (df_n["ATR"] - df_n["ATR"].mean())/df_n["ATR"].std()
-    df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
+    #df_n["ATR_normalized"] = (df_n["ATR"] - df_n["ATR"].mean())/df_n["ATR"].std()
+    #df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
 
+    sq_r = (close/prev_close-1)**2
+    df_n["Squared_Returns"] = sq_r.rolling(7).std()
+    df_n["SD_Prices"] = close.rolling(7).std()
     df_n = df_n.dropna()
     df_n = df_n.reset_index().reset_index()
     df_n["index"] = df_n.index%7
     return df_n
 
-def get_trained_model(df,scaler,metric="ATR"):
+def get_trained_model(df,scaler,metric="ATR", h1 =30, h2 =30):
     X_train,y_train,X_test,y_test = tt_split(df, metric,scaler)
 
 
@@ -157,7 +157,7 @@ def get_trained_model(df,scaler,metric="ATR"):
 
     #training loop
     
-    model = NN_LSTM(input_size=6,output_size=1)
+    model = NN_LSTM(input_size=6,output_size=1, h1 = h1, h2 = h2)
     model = model.to(device)
     epochs = 20
     optim = torch.optim.Adam(params = model.parameters())
@@ -165,25 +165,21 @@ def get_trained_model(df,scaler,metric="ATR"):
     pde_crit = MSELoss()
     losses = []
     losses_test = []
-    past_error = torch.tensor([0 for _ in range(64)],dtype=torch.float32).to(device)
+
     for i in range(epochs):
         running_loss = 0
         for x_window,y_atr in loader:
-            if x_window.size()!=64:
-                continue
             #print("Running")
             input = x_window.permute(1,0,2) #shape = [seq_length,batch_length,4]
             #t = input[-1][:,0]
             input = input.to(device)
             y_atr = y_atr.to(device)
-            out = model(input,past_error.reshape(-1,1))
+            out = model(input)
             #print(y_atr.shape)
             #print(out,y_atr)
             #break
             #print("T shape: ",t.shape)
             loss = crit(out,y_atr)# + pde_crit(PDE_loss(t,out,long_atr))
-            past_error = out.detach() - y_atr.detach()
-            print("PAST ERROR: ", past_error)
             running_loss+=loss.item()
             optim.zero_grad()
             loss.backward()
@@ -195,19 +191,13 @@ def get_trained_model(df,scaler,metric="ATR"):
         losses.append(running_loss)
 
         with torch.no_grad():
-            past_error_test = torch.tensor([0 for _ in range(64)],dtype=torch.float32,device=device)
             testing_loss = 0
             for x_window_test,y_atr_test in loader_test:
-                if x_window_test.size()!=64:
-                    continue
                 x_window_test = x_window_test.to(device)
-                out_test = model(x_window_test.permute(1,0,2),past_error_test.reshape(-1,1))
+                out_test = model(x_window_test.permute(1,0,2))
                 #print(y_atr_test.shape)
                 y_atr_test = y_atr_test.to(device)
-
-                past_error_test = out_test.detach() - y_atr_test.detach()
                 loss = crit(out_test,y_atr_test)
-
                 testing_loss+=loss.item()
             losses_test.append(testing_loss/(len(loader_test)))
 
@@ -226,7 +216,7 @@ def backtest_strategy(data: pd.DataFrame,
                           lstm_model:NN_LSTM,
                           scaler:StandardScaler,
                           vol_metric:str,
-                          ini_cash=10000,
+                          ini_cash=1000,
                           R: float = 1000.0,
                           buy_scale = 1.5,
                           sell_scale = 1.5,lr=.1):
@@ -256,7 +246,6 @@ def backtest_strategy(data: pd.DataFrame,
     p_money=[]
     atr_past_a = 0
     bias=0
-    past_error = torch.tensor([0])
     for i in range(T, len(data)-1):
         # if i>T:
         #     true_atr_norm = scaler.transform(np.reshape(data[vol_metric].iloc[i],(-1,1)))
@@ -265,11 +254,12 @@ def backtest_strategy(data: pd.DataFrame,
         #     loss.backward()
         #     optim.step()
 
-        if (i-T)%(10) == 0:
-            if i!=T:
-                past_ten_preds = preds[i-10-T:i-T]
-                #print("SAHEP: ",past_ten_preds,i)
-                bias = np.mean(data[vol_metric].iloc[i-10:i]-past_ten_preds)
+        ## Bias
+        # if (i-T)%(10) == 0:
+        #     if i!=T:
+        #         past_ten_preds = preds[i-10-T:i-T]
+        #         #print("SAHEP: ",past_ten_preds,i)
+        #         bias = np.mean(data[vol_metric].iloc[i-10:i]-past_ten_preds)
 
         window_atr = data[vol_metric].iloc[i-T:i]
         if i>=T+30:
@@ -295,7 +285,7 @@ def backtest_strategy(data: pd.DataFrame,
         #print(X)
         model_in = torch.tensor(X.values.reshape(T,1, X.shape[1])).to(torch.float32).to(device)
         # Predict next normalized ATR, then denormalize
-        atr_next_norm = lstm_model(model_in,past_error.reshape(-1,1))
+        atr_next_norm = lstm_model(model_in)
         #print(atr_next_norm.shape)
         preds_norm.append(atr_next_norm)
         atr_next_norm=atr_next_norm.item()
@@ -304,8 +294,6 @@ def backtest_strategy(data: pd.DataFrame,
         #if atr_next<0:
         #    print(atr_next)
         preds.append(atr_next)
-        
-        past_error = torch.tensor([atr_next-data.loc[i,"ATR"]],dtype=torch.float32,device=device)
 
         # next bar’s prices
         open_next  = data['Open'].iloc[i+1]
@@ -324,7 +312,7 @@ def backtest_strategy(data: pd.DataFrame,
             
         elif atr_next < lower:
             # buy: risk R = shares * ATR_next -> shares = R / ATR_next
-            target_shares = R / atr_next
+            target_shares = (R / atr_next)
             # print("Lower: ",lower)
             # print("ATR Next: ",atr_next)
             # print("Target shares: ", target_shares)
@@ -333,9 +321,11 @@ def backtest_strategy(data: pd.DataFrame,
             # print("Delta: ",delta)
             # print("Total for Delta: $", delta*open_next)
             if cash<delta*open_next:
-                for j in range(int(delta)):
+                for j in np.linspace(0,delta,int(delta)):
                     if cash>j*open_next:
                         delta = j
+            delta /= 2
+            
             cash -= delta * open_next
             shares+=delta
             print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
