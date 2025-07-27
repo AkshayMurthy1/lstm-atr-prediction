@@ -1,8 +1,0 @@
-Start Training Date: 2001-01-01 
- End Training Date: 2020-01-01 
- Start Sim Date: 2022-01-02 
- End Sim Date: 2024-01-05 
-Look-back window: 30 days
-Note: Results with Scaling OLHC + vol_metric
-
-!!best one so far; good ATR and bad SD
