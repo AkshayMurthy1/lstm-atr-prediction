@@ -232,24 +232,28 @@ def get_trained_model(df,scaler,scaler_x,metric="ATR",model_type = "RNN"):
     return model,fig_tr,fig_te
     
 
+
+
+# Assumes model is a torch.nn.Module, and scaler/scaler_x are fitted StandardScaler instances
+
+import numpy as np
+import pandas as pd
+import torch
+
+# Assumes model is a torch.nn.Module, and scaler/scaler_x are fitted StandardScaler instances
+
 def backtest_strategy(data: pd.DataFrame,
                           lstm_model:NN_LSTM,
                           scaler:StandardScaler,
                           scaler_x:StandardScaler,
                           vol_metric:str,
+                          b_type:str,
                           ini_cash=1000,
                           R: float = 1000.0,
                           buy_scale = 1.5,
                           sell_scale = 1.5,lr=.1,
-                          feats = ['Open','Close','High','Low','Volume']):
-    """
-    Backtest a simple ATR‑based mean‑reversion strategy:
-      - Predict next ATR with an LSTM
-      - If predicted ATR is unusually high → go flat (sell)
-      - If unusually low → go long
-    Assumes 'data' has columns ['index','Open','High','Low','Close',vol_metric].
-    'scaler' is a fitted StandardScaler on the train-period ATR.
-    """
+                          feats = ['Open','Close','High','Low','Volume']) -> tuple:
+
     cash = ini_cash
     shares = 0.0
 
@@ -283,23 +287,20 @@ def backtest_strategy(data: pd.DataFrame,
         #         #print("SAHEP: ",past_ten_preds,i)
         #         bias = np.mean(data[vol_metric].iloc[i-10:i]-past_ten_preds)
 
-        window_atr = data[vol_metric].iloc[i-T:i]
-        if i>=T+30:
-            q1 = np.quantile(preds,0.25) #take avg of preds and true values?
-            q3 = np.quantile(preds,0.75)
-            med = np.quantile(preds,0.50)
-
-            iqr = q3 - q1
-            lower = med - buy_scale * iqr
-            upper = med + sell_scale * iqr
+        if b_type == "STD":
+            arr = data['Close'].iloc[i-T:i]
+            mu = arr.mean()
+            sigma = arr.std()
+            lower = mu - buy_scale * sigma
+            upper = mu + sell_scale * sigma
         else:
-            q1 = window_atr.quantile(.25)
-            q3 = window_atr.quantile(.75) 
-            med = window_atr.quantile(.5) 
-            iqr = q3-q1
-            lower = med-buy_scale*iqr
-            upper = med+sell_scale*iqr
-
+            # ATR-based bands
+            # --- Compute rolling bands on price using ATR ---
+            price_window = data['Close'].iloc[i-T:i]
+            sma = price_window.mean()
+            atr_band = data['TR'].iloc[i-T:i].mean()
+            lower = sma - buy_scale * atr_band
+            upper = sma + sell_scale * atr_band
         # Prepare model input: last T bars of OHLC + normalized ATR
         X = data[feats].iloc[i-T:i].copy()
         X[feats] = scaler_x.transform(X[feats])    
@@ -326,14 +327,14 @@ def backtest_strategy(data: pd.DataFrame,
 
 
         # entry/exit signals
-        if atr_next > upper and shares > 0:
+        if data.loc[i, 'Open'] > upper and shares > 0.0:
             sells.append(i)
             # sell all
             cash += shares * close_next
             #print(f"On the {i}th day, sold {shares} shares for ${shares*close_next}")
             shares = 0.0
             
-        elif atr_next < lower:
+        elif data.loc[i, 'Open'] < lower:
             # buy: risk R = shares * ATR_next -> shares = R / ATR_next
             target_shares = (R / atr_next)
             # print("Lower: ",lower)
