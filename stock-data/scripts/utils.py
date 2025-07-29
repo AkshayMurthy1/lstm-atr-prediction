@@ -247,11 +247,10 @@ def backtest_strategy(data: pd.DataFrame,
                           scaler:StandardScaler,
                           scaler_x:StandardScaler,
                           vol_metric:str,
-                          b_type:str,
                           ini_cash=1000,
                           R: float = 1000.0,
                           buy_scale = 1.5,
-                          sell_scale = 1.5,lr=.1,
+                          sell_scale = 1.5,lr=.001,
                           feats = ['Open','Close','High','Low','Volume']) -> tuple:
 
     cash = ini_cash
@@ -287,7 +286,7 @@ def backtest_strategy(data: pd.DataFrame,
         #         #print("SAHEP: ",past_ten_preds,i)
         #         bias = np.mean(data[vol_metric].iloc[i-10:i]-past_ten_preds)
 
-        if b_type == "STD":
+        if vol_metric == "Squared_Returns" or "SD_Prices":
             arr = data['Close'].iloc[i-T:i]
             mu = arr.mean()
             sigma = arr.std()
@@ -331,7 +330,7 @@ def backtest_strategy(data: pd.DataFrame,
             sells.append(i)
             # sell all
             cash += shares * close_next
-            #print(f"On the {i}th day, sold {shares} shares for ${shares*close_next}")
+            print(f"On the {i}th day, sold {shares} shares for ${shares*close_next}")
             shares = 0.0
             
         elif data.loc[i, 'Open'] < lower:
@@ -352,7 +351,7 @@ def backtest_strategy(data: pd.DataFrame,
             
             cash -= delta * open_next
             shares+=delta
-            #print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
+            print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
             buys.append(i)
         t_money.append(cash+shares*data['Close'].iloc[i])
         p_money.append(passive_shares*data['Close'].iloc[i])
