@@ -242,7 +242,122 @@ import torch
 
 # Assumes model is a torch.nn.Module, and scaler/scaler_x are fitted StandardScaler instances
 
+def backtest_strategy_mr(data: pd.DataFrame,
+                          lstm_model:NN_LSTM,
+                          scaler:StandardScaler,
+                          scaler_x:StandardScaler,
+                          vol_metric:str,
+                          ini_cash=1000,
+                          R: float = 100.0,
+                          buy_scale = 1.5,
+                          sell_scale = 1.5,lr=.001,
+                          feats = ['Open','Close','High','Low','Volume'],
+                          buy_max=500) -> tuple:
+    cash = ini_cash
+    shares = 0.0
+
+    buys = []
+    sells = []
+    preds = []
+    preds_norm = []
+    
+    passive_shares = ini_cash/data.loc[T,"Open"]
+    # Precompute rolling IQR thresholds on ATR over T bars
+    # (we’ll compute quantiles on‑the‑fly inside the loop)
+    
+    crit = MSELoss()
+    optim = torch.optim.Adam(lstm_model.parameters(),lr=lr) # have higher learning rate
+    t_money = []
+    p_money=[]
+    atr_past_a = 0
+    bias=0
+    for i in range(T, len(data)-1):
+        # if i>T:
+        #     true_atr_norm = scaler.transform(np.reshape(data[vol_metric].iloc[i],(-1,1)))
+        #     #print("P size: ",len(preds_norm))
+        #     loss = crit(torch.tensor(torch.tensor([true_atr_norm],dtype=torch.float32)),preds_norm[-1])
+        #     loss.backward()
+        #     optim.step()
+
+        ## Bias
+        # if (i-T)%(10) == 0:
+        #     if i!=T:
+        #         past_ten_preds = preds[i-10-T:i-T]
+        #         #print("SAHEP: ",past_ten_preds,i)
+        #         bias = np.mean(data[vol_metric].iloc[i-10:i]-past_ten_preds)
+        # Prepare model input: last T bars of OHLC + normalized ATR
+
+        #define upper and lower
+        past_mets = data[vol_metric].iloc[i-T:i]
+        upper = past_mets.mean() + sell_scale*past_mets.std()
+        lower = past_mets.mean()-buy_scale*past_mets.std()
+        X = data[feats].iloc[i-T:i].copy()
+        X[feats] = scaler_x.transform(X[feats])    
+        X['ATR_norm'] = scaler.transform(data[[vol_metric]].iloc[i-T:i])  # shape (T,1)
+        # reshape to (1, T, features)
+        #print(X)
+        model_in = torch.tensor(X.values.reshape(T,1, X.shape[1])).to(torch.float32).to(device)
+        # Predict next normalized ATR, then denormalize
+        met_next_norm = lstm_model(model_in)
+        #print(met_next_norm.shape)
+        preds_norm.append(met_next_norm)
+        met_next_norm=met_next_norm.item()
+        
+        met_next = scaler.inverse_transform([[met_next_norm]])[0,0] + bias
+        #if met_next<0:
+        #    print(met_next)
+        preds.append(met_next)
+
+        #define open and close
+        open = data['Open'].iloc[i]
+        close = data['Close'].iloc[i]
+        # next bar’s prices
+        open_next  = data['Open'].iloc[i+1]
+        close_next = data['Close'].iloc[i+1]
+
+        atr_past_a += (data['ATR'] - met_next)
+
+
+        # entry/exit signals
+        if data.loc[i, vol_metric] > upper and shares > 0.0:
+            sells.append(i)
+            # sell all
+            cash += shares * close
+            print(f"On the {i}th day, sold {shares} shares for ${shares*close}")
+            shares = 0.0
+            
+        elif data.loc[i, vol_metric] < lower:
+            # buy: risk R = shares * met_next -> shares = R / met_next
+            target_shares = (R / met_next)
+            # print("Lower: ",lower)
+            # print("ATR Next: ",met_next)
+            # print("Target shares: ", target_shares)
+            # adjust cash & position
+            delta = max(target_shares - shares,0) #keep it positive (sanity check)
+            delta = min(delta,buy_max/close) #don't let it be above a certain threshold of shares to buy
+            # print("Delta: ",delta)
+            # print("Total for Delta: $", delta*open_next)
+            if cash<delta*open_next:
+                for j in range(0,int(delta)):
+                    if cash>j*open_next:
+                        delta = j
+            
+            cash -= delta * close
+            shares+=delta
+            print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
+            buys.append(i)
+        t_money.append(cash+shares*data['Close'].iloc[i])
+        p_money.append(passive_shares*data['Close'].iloc[i])
+    # At end, mark-to-market at last close
+    final_value = cash + shares * data['Close'].iloc[-1]
+    passive_value = passive_shares*data['Close'].iloc[-1]
+
+    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money
+
+
 def backtest_strategy(data: pd.DataFrame,
+
+
                           lstm_model:NN_LSTM,
                           scaler:StandardScaler,
                           scaler_x:StandardScaler,
@@ -308,21 +423,21 @@ def backtest_strategy(data: pd.DataFrame,
         #print(X)
         model_in = torch.tensor(X.values.reshape(T,1, X.shape[1])).to(torch.float32).to(device)
         # Predict next normalized ATR, then denormalize
-        atr_next_norm = lstm_model(model_in)
-        #print(atr_next_norm.shape)
-        preds_norm.append(atr_next_norm)
-        atr_next_norm=atr_next_norm.item()
+        met_next_norm = lstm_model(model_in)
+        #print(met_next_norm.shape)
+        preds_norm.append(met_next_norm)
+        met_next_norm=met_next_norm.item()
         
-        atr_next = scaler.inverse_transform([[atr_next_norm]])[0,0] + bias
-        #if atr_next<0:
-        #    print(atr_next)
-        preds.append(atr_next)
+        met_next = scaler.inverse_transform([[met_next_norm]])[0,0] + bias
+        #if met_next<0:
+        #    print(met_next)
+        preds.append(met_next)
 
         # next bar’s prices
         open_next  = data['Open'].iloc[i+1]
         close_next = data['Close'].iloc[i+1]
 
-        atr_past_a += (data['ATR'] - atr_next)
+        atr_past_a += (data['ATR'] - met_next)
 
 
         # entry/exit signals
@@ -334,10 +449,10 @@ def backtest_strategy(data: pd.DataFrame,
             shares = 0.0
             
         elif data.loc[i, 'Open'] < lower:
-            # buy: risk R = shares * ATR_next -> shares = R / ATR_next
-            target_shares = (R / atr_next)
+            # buy: risk R = shares * met_next -> shares = R / met_next
+            target_shares = (R / met_next)
             # print("Lower: ",lower)
-            # print("ATR Next: ",atr_next)
+            # print("ATR Next: ",met_next)
             # print("Target shares: ", target_shares)
             # adjust cash & position
             delta = max(target_shares - shares,0)
