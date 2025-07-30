@@ -156,8 +156,8 @@ def get_cleaned_df(ticker,start,end):
     #df_n["ATR_normalized"] = (df_n["ATR"] - df_n["ATR"].mean())/df_n["ATR"].std()
     #df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
 
-    df_n["SR"] = (close/prev_close-1)**2
-    df_n["Squared_Returns"] = df_n["SR"].rolling(7).std()
+    df_n["SR"] = (close/prev_close)**2
+    df_n["SD_Squared_Returns"] = df_n["SR"].rolling(7).std()
     df_n["SD_Prices"] = close.rolling(7).std()
     df_n = df_n.dropna()
     df_n = df_n.reset_index().reset_index()
@@ -289,10 +289,12 @@ def backtest_strategy_mr(data: pd.DataFrame,
 
         #define upper and lower
         #past_mets = data[vol_metric].iloc[i-T:i]
-        past_mets = preds[-min(len(preds),T)]
+        #print("Len:",len(preds))
+        #print("Our ind:",-min(len(preds),T))
+        past_mets = np.array(preds[-min(len(preds),T):])
         if len(past_mets)<T:
-            past_mets = data[vol_metric].iloc[i-(T-len(past_mets)):i-(len(past_mets))]
-            
+            to_add = np.array(data[vol_metric].iloc[i-(T-len(past_mets)):i-(len(past_mets))])
+            past_mets = np.append(to_add,past_mets)
         upper = past_mets.mean() + sell_scale*past_mets.std()
         lower = past_mets.mean()-buy_scale*past_mets.std()
 
@@ -407,7 +409,7 @@ def backtest_strategy(data: pd.DataFrame,
         #         #print("SAHEP: ",past_ten_preds,i)
         #         bias = np.mean(data[vol_metric].iloc[i-10:i]-past_ten_preds)
 
-        if vol_metric == "Squared_Returns" or "SD_Prices":
+        if vol_metric == "SD_Squared_Returns" or "SD_Prices":
             arr = data['Close'].iloc[i-T:i]
             mu = arr.mean()
             sigma = arr.std()
@@ -481,3 +483,17 @@ def backtest_strategy(data: pd.DataFrame,
     passive_value = passive_shares*data['Close'].iloc[-1]
 
     return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money
+
+
+
+def customize_ax(ax, title=None, xlabel=None, ylabel=None):
+    if title:
+        ax.set_title(title, fontsize=14, fontweight="bold")
+    if xlabel:
+        ax.set_xlabel(xlabel, fontsize=12)
+    if ylabel:
+        ax.set_ylabel(ylabel, fontsize=12)
+    ax.tick_params(axis='both', which='major', labelsize=10)
+    ax.grid(True)
+    if ax.get_legend():
+        ax.legend(fontsize=10, frameon=True)
