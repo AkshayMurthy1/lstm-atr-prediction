@@ -288,9 +288,15 @@ def backtest_strategy_mr(data: pd.DataFrame,
         # Prepare model input: last T bars of OHLC + normalized ATR
 
         #define upper and lower
-        past_mets = data[vol_metric].iloc[i-T:i]
+        #past_mets = data[vol_metric].iloc[i-T:i]
+        past_mets = preds[-min(len(preds),T)]
+        if len(past_mets)<T:
+            past_mets = data[vol_metric].iloc[i-(T-len(past_mets)):i-(len(past_mets))]
+            
         upper = past_mets.mean() + sell_scale*past_mets.std()
         lower = past_mets.mean()-buy_scale*past_mets.std()
+
+
         X = data[feats].iloc[i-T:i].copy()
         X[feats] = scaler_x.transform(X[feats])    
         X['ATR_norm'] = scaler.transform(data[[vol_metric]].iloc[i-T:i])  # shape (T,1)
