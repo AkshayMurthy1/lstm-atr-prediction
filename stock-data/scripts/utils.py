@@ -156,7 +156,7 @@ def get_cleaned_df(ticker,start,end):
     #df_n["ATR_normalized"] = (df_n["ATR"] - df_n["ATR"].mean())/df_n["ATR"].std()
     #df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
 
-    df_n["SR"] = (close/prev_close)**2
+    df_n["SR"] = np.log((close/prev_close)**2)
     df_n["SD_Squared_Returns"] = df_n["SR"].rolling(7).std()
     df_n["SD_Prices"] = close.rolling(7).std()
     df_n = df_n.dropna()
@@ -345,15 +345,15 @@ def backtest_strategy_mr(data: pd.DataFrame,
             delta = min(delta,buy_max/close) #don't let it be above a certain threshold of shares to buy
             # print("Delta: ",delta)
             # print("Total for Delta: $", delta*open_next)
-            if cash<delta*open_next:
+            if cash<delta*close:
                 for j in range(0,int(delta)):
-                    if cash>j*open_next:
+                    if cash>j*close:
                         delta = j
-            
-            cash -= delta * close
-            shares+=delta
-            print(f"On the {i}th day, Bought {delta} shares for ${delta*open_next}")
-            buys.append(i)
+            if cash>delta*close:
+                cash -= delta * close
+                shares+=delta
+                print(f"On the {i}th day, Bought {delta} shares for ${delta*close}")
+                buys.append(i)
         t_money.append(cash+shares*data['Close'].iloc[i])
         p_money.append(passive_shares*data['Close'].iloc[i])
     # At end, mark-to-market at last close
