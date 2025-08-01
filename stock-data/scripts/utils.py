@@ -159,6 +159,11 @@ def get_cleaned_df(ticker,start,end):
     df_n["SR"] = np.log((close/prev_close)**2)
     df_n["SD_Squared_Returns"] = df_n["SR"].rolling(7).std()
     df_n["SD_Prices"] = close.rolling(7).std()
+    q25 = [np.quantile(roll,.25) for roll in df_n["SR"].rolling(7)]
+    q75 = [np.quantile(roll,.75) for roll in df_n["SR"].rolling(7)]
+    print("QUANTILE25: ",q25)
+    print("QUANTILE75: ",q75)
+    df_n["IQR"] = np.array(q75)-np.array(q25)
     df_n = df_n.dropna()
     df_n = df_n.reset_index().reset_index()
     df_n["index"] = df_n.index%7
