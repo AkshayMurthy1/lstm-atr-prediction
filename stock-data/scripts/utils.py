@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 import warnings
+import seaborn as sns
 warnings.filterwarnings("ignore")
 
 T=30 #period of 30 days
@@ -161,8 +162,8 @@ def get_cleaned_df(ticker,start,end):
     df_n["SD_Prices"] = close.rolling(7).std()
     q25 = [np.quantile(roll,.25) for roll in df_n["SR"].rolling(7)]
     q75 = [np.quantile(roll,.75) for roll in df_n["SR"].rolling(7)]
-    print("QUANTILE25: ",q25)
-    print("QUANTILE75: ",q75)
+    #print("QUANTILE25: ",q25)
+    #print("QUANTILE75: ",q75)
     df_n["IQR"] = np.array(q75)-np.array(q25)
     df_n = df_n.dropna()
     df_n = df_n.reset_index().reset_index()
@@ -499,6 +500,8 @@ def customize_ax(ax, title=None, xlabel=None, ylabel=None):
     if ylabel:
         ax.set_ylabel(ylabel, fontsize=12)
     ax.tick_params(axis='both', which='major', labelsize=10)
-    ax.grid(True)
+    #ax.grid(True)
+    #ax.spines['top'].set_visible(False)
+    #ax.spines['right'].set_visible(False)
     if ax.get_legend():
         ax.legend(fontsize=10, frameon=True)
