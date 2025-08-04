@@ -299,13 +299,13 @@ def backtest_strategy_mr(data: pd.DataFrame,
         #print("Our ind:",-min(len(preds),T))
         past_mets = np.array(preds[-min(len(preds),T):])
         if len(past_mets)<T:
-            to_add = np.array(data[vol_metric].iloc[i-(T-len(past_mets)):i-(len(past_mets))])
+            to_add = np.array(data[vol_metric].iloc[i-T+1:i-(len(past_mets))+1]) #making this make sense with current day as predcitor
             past_mets = np.append(to_add,past_mets)
         upper = past_mets.mean() + sell_scale*past_mets.std()
         lower = past_mets.mean()-buy_scale*past_mets.std()
 
 
-        X = data[feats].iloc[i-T:i].copy()
+        X = data[feats].iloc[i-T+1:i+1].copy() #predict the next day and buy/sell on that day's close
         X[feats] = scaler_x.transform(X[feats])    
         X['ATR_norm'] = scaler.transform(data[[vol_metric]].iloc[i-T:i])  # shape (T,1)
         # reshape to (1, T, features)
@@ -333,14 +333,14 @@ def backtest_strategy_mr(data: pd.DataFrame,
 
 
         # entry/exit signals
-        if data.loc[i, vol_metric] > upper and shares > 0.0:
+        if met_next > upper and shares > 0.0:
             sells.append(i)
             # sell all
             cash += shares * close
             print(f"On the {i}th day, sold {shares} shares for ${shares*close}")
             shares = 0.0
             
-        elif data.loc[i, vol_metric] < lower:
+        elif met_next < lower:
             # buy: risk R = shares * met_next -> shares = R / met_next
             target_shares = (R / met_next)
             # print("Lower: ",lower)
