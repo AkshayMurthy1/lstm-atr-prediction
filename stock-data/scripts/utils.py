@@ -277,6 +277,10 @@ def backtest_strategy_mr(data: pd.DataFrame,
     p_money=[]
     atr_past_a = 0
     bias=0
+    uppers = []
+    lowers = []
+    vols = []
+
     for i in range(T, len(data)-1):
         # if i>T:
         #     true_atr_norm = scaler.transform(np.reshape(data[vol_metric].iloc[i],(-1,1)))
@@ -297,13 +301,15 @@ def backtest_strategy_mr(data: pd.DataFrame,
         #past_mets = data[vol_metric].iloc[i-T:i]
         #print("Len:",len(preds))
         #print("Our ind:",-min(len(preds),T))
+
         past_mets = np.array(preds[-min(len(preds),T):])
         if len(past_mets)<T:
             to_add = np.array(data[vol_metric].iloc[i-T+1:i-(len(past_mets))+1]) #making this make sense with current day as predcitor
             past_mets = np.append(to_add,past_mets)
         upper = past_mets.mean() + sell_scale*past_mets.std()
         lower = past_mets.mean()-buy_scale*past_mets.std()
-
+        lowers.append(lower)
+        uppers.append(upper)
 
         X = data[feats].iloc[i-T+1:i+1].copy() #predict the next day and buy/sell on that day's close
         X[feats] = scaler_x.transform(X[feats])    
@@ -318,6 +324,7 @@ def backtest_strategy_mr(data: pd.DataFrame,
         met_next_norm=met_next_norm.item()
         
         met_next = scaler.inverse_transform([[met_next_norm]])[0,0] + bias
+        vols.append(met_next)
         #if met_next<0:
         #    print(met_next)
         preds.append(met_next)
@@ -366,7 +373,7 @@ def backtest_strategy_mr(data: pd.DataFrame,
     final_value = cash + shares * data['Close'].iloc[-1]
     passive_value = passive_shares*data['Close'].iloc[-1]
 
-    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money
+    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money, lowers, uppers, vols
 
 
 def backtest_strategy(data: pd.DataFrame,
@@ -400,6 +407,9 @@ def backtest_strategy(data: pd.DataFrame,
     p_money=[]
     atr_past_a = 0
     bias=0
+    uppers = []
+    lowers = []
+    vols = []
     for i in range(T, len(data)-1):
         # if i>T:
         #     true_atr_norm = scaler.transform(np.reshape(data[vol_metric].iloc[i],(-1,1)))
@@ -421,6 +431,7 @@ def backtest_strategy(data: pd.DataFrame,
             sigma = arr.std()
             lower = mu - buy_scale * sigma
             upper = mu + sell_scale * sigma
+            
         else:
             # ATR-based bands
             # --- Compute rolling bands on price using ATR ---
@@ -429,6 +440,9 @@ def backtest_strategy(data: pd.DataFrame,
             atr_band = data['TR'].iloc[i-T:i].mean()
             lower = sma - buy_scale * atr_band
             upper = sma + sell_scale * atr_band
+
+        lowers.append(lower)
+        uppers.append(upper)
         # Prepare model input: last T bars of OHLC + normalized ATR
         X = data[feats].iloc[i-T:i].copy()
         X[feats] = scaler_x.transform(X[feats])    
@@ -488,7 +502,7 @@ def backtest_strategy(data: pd.DataFrame,
     final_value = cash + shares * data['Close'].iloc[-1]
     passive_value = passive_shares*data['Close'].iloc[-1]
 
-    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money
+    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money, lowers, uppers, vols
 
 
 
