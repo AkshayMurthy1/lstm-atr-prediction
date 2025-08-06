@@ -5,7 +5,7 @@ Over the past two decades, portfolio analysis and financial risk management have
 ## Definitions
 ### ATR
 
-$ATR = \frac{\sum_{i=1}^{n}TR_i}{n}$
+$ATR = \frac{\sum_{i=1}^{N}TR_i}{N}$
 
 #### TR
 
@@ -13,11 +13,11 @@ $Max[{(H-L)}, Abs{(H-C_p)}, Abs{(L-C_p)}]$
 
 ### S.D. of log returns
 
-$SD\ of\ log\ returns = {\frac{(\sum{log(\frac{C_t}{(C_{t-1})})}-\mu_u)^2}N}$
+$SD\ of\ log\ returns = {\frac{(\sum_{t=1}^N{log(\frac{C_t}{(C_{t-1})})}-\mu_u)^2}N}$
 
 #### S.D. of prices
 
-$SD\ of\ prices = \frac{(\sum{C_t-\mu_c)^2}}{N}$
+$SD\ of\ prices = \frac{\sum_{t=1}^N(C_t-\mu_c)^2}{N}$
 
 
 
