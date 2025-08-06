@@ -13,11 +13,11 @@ $Max[{(H-L)}, Abs{(H-C_p)}, Abs{(L-C_p)}]$
 
 ### S.D. of log returns
 
-$SD\ of\ log\ returns = {\frac{\sum{log(\frac{C_t}{(C_{t-1})})}}N}$
+$SD\ of\ log\ returns = {\frac{(\sum{log(\frac{C_t}{(C_{t-1})})}-\mu_u)^2}N}$
 
 #### S.D. of prices
 
-$SD\ of\ prices = {\frac{\sum{}}{N}$
+$SD\ of\ prices = {\frac{(\sum{C_t-\mu_c)^2}}{N}$
 
 
 
