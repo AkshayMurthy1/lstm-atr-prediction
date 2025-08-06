@@ -17,7 +17,7 @@ $SD\ of\ log\ returns = {\frac{(\sum{log(\frac{C_t}{(C_{t-1})})}-\mu_u)^2}N}$
 
 #### S.D. of prices
 
-$SD\ of\ prices = {\frac{(\sum{C_t-\mu_c)^2}}{N}$
+$SD\ of\ prices = \frac{(\sum{C_t-\mu_c)^2}}{N}$
 
 
 
