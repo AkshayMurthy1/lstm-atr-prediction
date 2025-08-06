@@ -15,6 +15,11 @@ $Max[{(H-L)}, Abs{(H-C_p)}, Abs{(L-C_p)}]$
 
 $SD\ of\ log\ returns = {\frac{\sum{log(\frac{C_t}{(C_{t-1})})}}N}$
 
+#### S.D. of prices
+
+$SD\ of\ prices = {\frac{\sum{}}{N}$
+
+
 
 ## Installation
 Download and install version 1.85.1 of [Visual Studio Code](https://code.visualstudio.com/download). Then, in the terminal, create an env using the environment.txt file and [conda](https://www.anaconda.com/download).
