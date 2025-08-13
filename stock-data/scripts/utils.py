@@ -149,19 +149,21 @@ def get_cleaned_df(ticker,start,end):
         (high - prev_close).abs(),
         (low - prev_close).abs()
     ], axis=1).max(axis=1)
-    df_n["TR"] = tr
+    df_n["TR"] = tr/close.shift(1) #basically atr of returns
     df_n["ATR"] = tr.rolling(7).mean()
     
-    log_diff = np.log(df_n["Close"]/df_n["Close"].shift(1))
-    df_n["SD_Log_Close"] = log_diff.rolling(7).std()
+    #log_diff = np.log(df_n["Close"]/df_n["Close"].shift(1))
+    #df_n["SD_Log_Close"] = log_diff.rolling(7).std()
     #df_n["ATR_normalized"] = (df_n["ATR"] - df_n["ATR"].mean())/df_n["ATR"].std()
     #df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
-
-    df_n["SR"] = np.log((close/prev_close)**2)
+    df_n["Returns"] = df["Close"]/df["Close"].shift(1)-1
+    df_n["SD_Returns"] = df_n["Returns"].rolling(7).std()
+    df_n["MAD_Returns"] = df_n["Returns"].rolling(7).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=False)
+    df_n["SR"] = np.log((close/prev_close))**2
     df_n["SD_Squared_Returns"] = df_n["SR"].rolling(7).std()
-    df_n["SD_Prices"] = close.rolling(7).std()
-    q25 = [np.quantile(roll,.25) for roll in df_n["SR"].rolling(7)]
-    q75 = [np.quantile(roll,.75) for roll in df_n["SR"].rolling(7)]
+    #df_n["SD_Prices"] = close.rolling(7).std()
+    q25 = [np.quantile(roll,.25) for roll in df_n["Returns"].rolling(7)]
+    q75 = [np.quantile(roll,.75) for roll in df_n["Returns"].rolling(7)]
     #print("QUANTILE25: ",q25)
     #print("QUANTILE75: ",q75)
     df_n["IQR"] = np.array(q75)-np.array(q25)
@@ -277,6 +279,10 @@ def backtest_strategy_mr(data: pd.DataFrame,
     p_money=[]
     atr_past_a = 0
     bias=0
+    uppers = []
+    lowers = []
+    vols = []
+
     for i in range(T, len(data)-1):
         # if i>T:
         #     true_atr_norm = scaler.transform(np.reshape(data[vol_metric].iloc[i],(-1,1)))
@@ -297,13 +303,15 @@ def backtest_strategy_mr(data: pd.DataFrame,
         #past_mets = data[vol_metric].iloc[i-T:i]
         #print("Len:",len(preds))
         #print("Our ind:",-min(len(preds),T))
+
         past_mets = np.array(preds[-min(len(preds),T):])
         if len(past_mets)<T:
             to_add = np.array(data[vol_metric].iloc[i-T+1:i-(len(past_mets))+1]) #making this make sense with current day as predcitor
             past_mets = np.append(to_add,past_mets)
         upper = past_mets.mean() + sell_scale*past_mets.std()
         lower = past_mets.mean()-buy_scale*past_mets.std()
-
+        lowers.append(lower)
+        uppers.append(upper)
 
         X = data[feats].iloc[i-T+1:i+1].copy() #predict the next day and buy/sell on that day's close
         X[feats] = scaler_x.transform(X[feats])    
@@ -318,6 +326,7 @@ def backtest_strategy_mr(data: pd.DataFrame,
         met_next_norm=met_next_norm.item()
         
         met_next = scaler.inverse_transform([[met_next_norm]])[0,0] + bias
+        vols.append(met_next)
         #if met_next<0:
         #    print(met_next)
         preds.append(met_next)
@@ -334,7 +343,7 @@ def backtest_strategy_mr(data: pd.DataFrame,
 
         # entry/exit signals
         if met_next > upper and shares > 0.0:
-            sells.append(i)
+            sells.append(i-T)
             # sell all
             cash += shares * close
             print(f"On the {i}th day, sold {shares} shares for ${shares*close}")
@@ -359,15 +368,14 @@ def backtest_strategy_mr(data: pd.DataFrame,
                 cash -= delta * close
                 shares+=delta
                 print(f"On the {i}th day, Bought {delta} shares for ${delta*close}")
-                buys.append(i)
+                buys.append(i-T)
         t_money.append(cash+shares*data['Close'].iloc[i])
         p_money.append(passive_shares*data['Close'].iloc[i])
     # At end, mark-to-market at last close
     final_value = cash + shares * data['Close'].iloc[-1]
     passive_value = passive_shares*data['Close'].iloc[-1]
 
-    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money
-
+    return final_value, cash, shares,passive_value,buys,sells,preds, t_money,p_money, lowers, uppers, vols
 
 def backtest_strategy(data: pd.DataFrame,
 
@@ -494,14 +502,14 @@ def backtest_strategy(data: pd.DataFrame,
 
 def customize_ax(ax, title=None, xlabel=None, ylabel=None):
     if title:
-        ax.set_title(title, fontsize=14, fontweight="bold")
+        ax.set_title(title, fontsize=20, fontweight="bold")
     if xlabel:
-        ax.set_xlabel(xlabel, fontsize=12)
+        ax.set_xlabel(xlabel, fontsize=16)
     if ylabel:
-        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_ylabel(ylabel, fontsize=16)
     ax.tick_params(axis='both', which='major', labelsize=10)
     #ax.grid(True)
     #ax.spines['top'].set_visible(False)
     #ax.spines['right'].set_visible(False)
     if ax.get_legend():
-        ax.legend(fontsize=10, frameon=True)
+        ax.legend(fontsize=14, frameon=True)
