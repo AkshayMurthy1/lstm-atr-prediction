@@ -361,7 +361,7 @@ def backtest_strategy_mr(data: pd.DataFrame,
             # print("Delta: ",delta)
             # print("Total for Delta: $", delta*open_next)
             if cash<delta*close:
-                for j in range(0,int(delta)):
+                for j in np.linspace(0,int(delta),5):
                     if cash>j*close:
                         delta = j
             if cash>delta*close:
@@ -513,3 +513,126 @@ def customize_ax(ax, title=None, xlabel=None, ylabel=None):
     #ax.spines['right'].set_visible(False)
     if ax.get_legend():
         ax.legend(fontsize=14, frameon=True)
+
+import numpy as np
+import pandas as pd
+
+def bollinger_bands_backtest(data, metric, buy_factor, sell_factor, T):
+    df = data.copy()
+
+    # Choose price for bands/PnL
+    adj_col = 'Adj Close' if 'Adj Close' in df.columns else ('Adj_Close' if 'Adj_Close' in df.columns else None)
+    price_col = adj_col if adj_col is not None else 'Close'
+    for col in ['Open','High','Low','Close']:
+        if col not in df.columns:
+            raise ValueError(f"Missing required column '{col}'.")
+    if price_col not in df.columns:
+        raise ValueError("Need 'Adj Close' (or 'Adj_Close') or 'Close' in data.")
+
+    if not df.index.is_monotonic_increasing:
+        df = df.sort_index()
+
+    price = df[price_col].astype(float)
+    ma = price.rolling(T, min_periods=T).mean()
+
+    metric = metric.lower()
+    if metric not in {'sd','atr','mad','iqr'}:
+        raise ValueError("metric must be one of {'sd','atr','mad','iqr'}")
+
+    if metric == 'sd':
+        metric_val = price.rolling(T, min_periods=T).std(ddof=0)
+    elif metric == 'atr':
+        prev_close = df['Close'].shift(1).astype(float)
+        high = df['High'].astype(float)
+        low  = df['Low'].astype(float)
+        tr = pd.DataFrame({
+            'hl': (high - low).abs(),
+            'hc': (high - prev_close).abs(),
+            'lc': (low  - prev_close).abs()
+        }).max(axis=1)
+        metric_val = tr.rolling(T, min_periods=T).mean()
+    elif metric == 'mad':
+        metric_val = price.rolling(T, min_periods=T).apply(lambda x: np.mean(np.abs(x - np.mean(x))), raw=False)
+    else:  # 'iqr'
+        metric_val = price.rolling(T, min_periods=T).apply(
+            lambda x: np.percentile(x, 75) - np.percentile(x, 25), raw=False
+        )
+
+    lower_band = ma - buy_factor  * metric_val
+    upper_band = ma + sell_factor * metric_val
+
+    signals = pd.DataFrame({
+        'price': price,
+        'ma': ma,
+        'metric_value': metric_val,
+        'lower_band': lower_band,
+        'upper_band': upper_band,
+    }, index=df.index).dropna().copy()
+
+    # Precompute signal flags (handy for debugging)
+    signals['buy_flag']  = signals['price'] < signals['lower_band']
+    signals['sell_flag'] = signals['price'] > signals['upper_band']
+
+    # --- Trading engine: long-only, fractional shares allowed ---
+    initial_cash = 100.0  # keep small; fractional shares handle expensive tickers
+    commission_per_trade = 0.0
+
+    cash = initial_cash
+    shares = 0.0
+    in_pos = False
+
+    trades = []
+    equity_curve = []
+
+    for t, row in signals.iterrows():
+        px = float(row['price'])
+        buy_flag = bool(row['buy_flag'])
+        sell_flag = bool(row['sell_flag'])
+
+        # BUY: below lower band and flat
+        if buy_flag and not in_pos:
+            # fractional sizing: all-in
+            qty = 0.0 if px <= 0 else (cash / px)
+            if qty > 0:
+                cost = qty * px + commission_per_trade
+                cash -= cost
+                shares += qty
+                in_pos = True
+                trades.append({'date': t, 'action': 'BUY', 'price': px, 'shares': qty,
+                               'cash': cash, 'equity': cash + shares * px})
+
+        # SELL: above upper band and in position
+        elif sell_flag and in_pos:
+            proceeds = shares * px - commission_per_trade
+            cash += proceeds
+            trades.append({'date': t, 'action': 'SELL', 'price': px, 'shares': shares,
+                           'cash': cash, 'equity': cash})
+            shares = 0.0
+            in_pos = False
+
+        equity_curve.append((t, cash + shares * px))
+
+    # Liquidate at end
+    if in_pos and shares > 0:
+        t = signals.index[-1]
+        px = float(signals['price'].iloc[-1])
+        proceeds = shares * px - commission_per_trade
+        cash += proceeds
+        trades.append({'date': t, 'action': 'SELL_EOD', 'price': px, 'shares': shares,
+                       'cash': cash, 'equity': cash})
+        shares = 0.0
+        in_pos = False
+        equity_curve[-1] = (t, cash)
+
+    equity_curve = pd.Series([v for _, v in equity_curve], index=[ts for ts, _ in equity_curve], name='equity')
+    trades_df = pd.DataFrame(trades)
+    if not trades_df.empty:
+        trades_df = trades_df[['date','action','price','shares','cash','equity']].reset_index(drop=True)
+
+    return {
+        'final_value': float(equity_curve.iloc[-1]),
+        'equity_curve': equity_curve,
+        'signals': signals,   # includes buy_flag/sell_flag for inspection
+        'trades': trades_df
+    }
+
