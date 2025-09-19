@@ -628,11 +628,15 @@ def bollinger_bands_backtest(data, metric, buy_factor, sell_factor, T):
     trades_df = pd.DataFrame(trades)
     if not trades_df.empty:
         trades_df = trades_df[['date','action','price','shares','cash','equity']].reset_index(drop=True)
-
+    returns = equity_curve.pct_change().dropna()
+    avg_return = returns.mean()
+    sd_return = equity_curve.std(ddof=0)
+    sharpe = avg_return/sd_return * np.sqrt(252)
     return {
         'final_value': float(equity_curve.iloc[-1]),
         'equity_curve': equity_curve,
         'signals': signals,   # includes buy_flag/sell_flag for inspection
-        'trades': trades_df
+        'trades': trades_df,
+        'sharpe':sharpe
     }
 
