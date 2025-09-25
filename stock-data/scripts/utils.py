@@ -536,7 +536,7 @@ def bollinger_bands_backtest(data, metric, buy_factor, sell_factor, T):
     ma = price.rolling(T, min_periods=T).mean()
 
     metric = metric.lower()
-    if metric not in {'sd','atr','mad','iqr'}:
+    if metric not in {'sd','atr','mad','iqr','mad_med','iqr_med'}:
         raise ValueError("metric must be one of {'sd','atr','mad','iqr'}")
 
     if metric == 'sd':
@@ -553,11 +553,18 @@ def bollinger_bands_backtest(data, metric, buy_factor, sell_factor, T):
         metric_val = tr.rolling(T, min_periods=T).mean()
     elif metric == 'mad':
         metric_val = price.rolling(T, min_periods=T).apply(lambda x: np.mean(np.abs(x - np.mean(x))), raw=False)
-    else:  # 'iqr'
+    elif metric == 'iqr':  # 'iqr'
         metric_val = price.rolling(T, min_periods=T).apply(
             lambda x: np.percentile(x, 75) - np.percentile(x, 25), raw=False
         )
-
+    elif metric == 'mad_med':
+        ma = price.rolling(T, min_periods=T).median()
+        metric_val = price.rolling(T, min_periods=T).apply(lambda x: np.mean(np.abs(x - np.mean(x))), raw=False)
+    elif metric == 'iqr_med':
+        ma = price.rolling(T, min_periods=T).median()
+        metric_val = price.rolling(T, min_periods=T).apply(
+            lambda x: np.percentile(x, 75) - np.percentile(x, 25), raw=False
+        )        
     lower_band = ma - buy_factor  * metric_val
     upper_band = ma + sell_factor * metric_val
 
@@ -629,9 +636,9 @@ def bollinger_bands_backtest(data, metric, buy_factor, sell_factor, T):
     if not trades_df.empty:
         trades_df = trades_df[['date','action','price','shares','cash','equity']].reset_index(drop=True)
     returns = equity_curve.pct_change().dropna()
-    avg_return = returns.mean()
+    net_return = (equity_curve.iloc[len(equity_curve)-1]-equity_curve.iloc[0])/(equity_curve.iloc[0])
     sd_return = equity_curve.std(ddof=0)
-    sharpe = avg_return/sd_return * np.sqrt(252)
+    sharpe = net_return/sd_return * np.sqrt(250)
     return {
         'final_value': float(equity_curve.iloc[-1]),
         'equity_curve': equity_curve,
