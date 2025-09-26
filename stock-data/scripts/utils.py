@@ -559,7 +559,7 @@ def bollinger_bands_backtest(data, metric, buy_factor, sell_factor, T):
         )
     elif metric == 'mad_med':
         ma = price.rolling(T, min_periods=T).median()
-        metric_val = price.rolling(T, min_periods=T).apply(lambda x: np.mean(np.abs(x - np.mean(x))), raw=False)
+        metric_val = price.rolling(T, min_periods=T).apply(lambda x: np.mean(np.abs(x - np.median(x))), raw=False)
     elif metric == 'iqr_med':
         ma = price.rolling(T, min_periods=T).median()
         metric_val = price.rolling(T, min_periods=T).apply(
