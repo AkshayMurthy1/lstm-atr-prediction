@@ -158,10 +158,10 @@ def get_cleaned_df(ticker,start,end):
     #df_n["SD_normalized"] = (df_n["SD_Log_Close"] - df_n["SD_Log_Close"].mean())/df_n["SD_Log_Close"].std()
     df_n["Returns"] = df["Close"]/df["Close"].shift(1)-1
     df_n["SD_Returns"] = df_n["Returns"].rolling(7).std()
-    df_n["MAD_Returns"] = df_n["Returns"].rolling(7).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=False)
+    #df_n["MAD_Returns"] = df_n["Returns"].rolling(7).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=False)
     df_n["SR"] = np.log((close/prev_close))**2
     df_n["SD_Squared_Returns"] = df_n["SR"].rolling(7).std()
-    #df_n["SD_Prices"] = close.rolling(7).std()
+    df_n["SD_Prices"] = close.rolling(7).std()
     q25 = [np.quantile(roll,.25) for roll in df_n["Returns"].rolling(7)]
     q75 = [np.quantile(roll,.75) for roll in df_n["Returns"].rolling(7)]
     #print("QUANTILE25: ",q25)
