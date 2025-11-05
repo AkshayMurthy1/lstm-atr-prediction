@@ -1,5 +1,5 @@
 # Investigating Methods to Accurately Model Volatility through Various Deep Learning Approaches
-The aim of this project is to use compare the effectiveness of forecasting ATR versus traditional metrics such as Squared returns or Standard Deviation using various Deep Learning approaches. Specifically, we look at the accuracy metrics of LSTM and RNN used to predict ATR, Squared Returns, and Rolling Standard Deviation across 8 ETFs on daily stock data. Historically, using ATR in volatility forecasting as been under-theorized, and we hope to gain new insights on different metrics on modelling volatility and investigate their effects on portfolio returns when incorporated into a simple backtest trading strategy.
+The aim of this project is to use compare the effectiveness of forecasting ATR versus traditional metrics such as Squared returns or Standard Deviation using various Deep Learning approaches. Specifically, we look at the accuracy metrics of LSTM and RNN used to predict ATR, Rolling Standard Deviation, and IQR across 10 ETFs on daily stock data. Historically, using ATR in volatility forecasting as been under-theorized, and we hope to gain new insights on different metrics on modelling volatility and investigate their effects on portfolio returns when incorporated into a simple backtest trading strategy.
 
 ## Definitions
 ### ATR
