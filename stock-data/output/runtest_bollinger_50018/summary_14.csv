@@ -1,0 +1,11 @@
+,ETF,1,1.25,1.5,1.75,2,2.25,2.5
+0,XLF,iqr_med: 627,sd: 626,mad_med: 684,mad: 476,iqr: 599,iqr_med: 638,iqr: 428
+1,SPY,iqr_med: 563,iqr: 762,mad_med: 584,sd: 548,sd: 745,mad: 593,mad: 662
+2,XLY,mad_med: 502,sd: 521,iqr_med: 501,iqr_med: 648,iqr_med: 580,iqr: 689,sd: 745
+3,XLU,mad: 344,mad_med: 318,iqr: 347,iqr_med: 410,iqr: 376,atr: 351,iqr: 386
+4,XLK,sd: 354,mad: 306,iqr: 546,iqr_med: 309,sd: 387,sd: 720,iqr: 647
+5,XLV,iqr_med: 651,iqr_med: 628,iqr: 735,sd: 653,mad_med: 758,mad: 704,mad: 722
+6,XLP,mad_med: 382,mad_med: 402,iqr_med: 414,iqr: 493,iqr: 439,atr: 696,iqr_med: 514
+7,XLB,iqr: 484,sd: 416,iqr: 551,atr: 581,atr: 762,atr: 462,iqr_med: 549
+8,XLI,sd: 411,iqr: 568,iqr_med: 648,iqr_med: 798,sd: 588,sd: 554,mad: 708
+9,XLE,iqr: 604,iqr_med: 598,sd: 531,mad_med: 503,mad: 743,mad_med: 577,mad_med: 637

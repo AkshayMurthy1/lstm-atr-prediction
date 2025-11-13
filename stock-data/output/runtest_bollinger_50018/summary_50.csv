@@ -1,0 +1,11 @@
+,ETF,1,1.25,1.5,1.75,2,2.25,2.5
+0,XLF,iqr: 327,iqr_med: 237,mad_med: 262,mad: 280,mad: 274,mad_med: 192,mad_med: 233
+1,SPY,iqr_med: 316,mad_med: 325,mad_med: 304,mad_med: 269,mad: 278,iqr_med: 291,iqr: 316
+2,XLY,iqr_med: 477,iqr: 357,sd: 426,iqr_med: 597,iqr: 887,iqr: 1653,iqr_med: 1006
+3,XLU,iqr_med: 313,iqr_med: 446,iqr: 543,iqr: 533,atr: 562,sd: 482,mad_med: 545
+4,XLK,iqr_med: 247,sd: 170,mad_med: 217,mad_med: 189,iqr: 586,iqr_med: 620,iqr: 612
+5,XLV,iqr: 481,sd: 589,mad: 581,mad: 550,mad_med: 511,atr: 450,atr: 440
+6,XLP,atr: 346,iqr_med: 460,iqr: 573,iqr_med: 520,iqr: 691,iqr_med: 716,iqr: 634
+7,XLB,iqr_med: 416,sd: 486,mad_med: 499,sd: 511,sd: 503,mad_med: 587,iqr_med: 545
+8,summary_14.csv,iqr: 386,iqr_med: 417,iqr: 439,sd: 427,sd: 467,mad_med: 474,iqr: 387
+9,XLI,mad_med: 473,iqr: 491,atr: 484,sd: 412,mad_med: 504,mad: 523,mad_med: 338
